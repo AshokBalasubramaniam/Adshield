@@ -62,7 +62,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppsScreen(vm: AppsViewModel = hiltViewModel()) {
+fun AppsScreen(onOpenYoutube: () -> Unit, vm: AppsViewModel = hiltViewModel()) {
     val rows by vm.rows.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     val query by vm.query.collectAsStateWithLifecycle()
@@ -76,7 +76,9 @@ fun AppsScreen(vm: AppsViewModel = hiltViewModel()) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item { SectionTitle("Compatibility") }
-            items(AppCompatibility.featured) { entry -> CompatCard(entry, installed = vm.installed(entry.packages).isNotEmpty()) }
+            items(AppCompatibility.featured) { entry ->
+                CompatCard(entry, installed = vm.installed(entry.packages).isNotEmpty(), onOpenDiagnostics = if (entry === AppCompatibility.youtube) onOpenYoutube else null)
+            }
             item { CompatCard(AppCompatibility.others, installed = null) }
 
             item { SectionTitle("Filter per app") }
@@ -138,7 +140,7 @@ fun AppsScreen(vm: AppsViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun CompatCard(entry: CompatEntry, installed: Boolean?) {
+private fun CompatCard(entry: CompatEntry, installed: Boolean?, onOpenDiagnostics: (() -> Unit)? = null) {
     var open by remember { mutableStateOf(false) }
     Panel(onClick = { open = !open }) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -152,6 +154,7 @@ private fun CompatCard(entry: CompatEntry, installed: Boolean?) {
             AnimatedVisibility(open) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     entry.details.forEach { BodyText("•  $it", color = MaterialTheme.colorScheme.onSurface) }
+                    onOpenDiagnostics?.let { TextButton(onClick = it) { Text("Open YouTube diagnostics") } }
                 }
             }
         }
@@ -179,10 +182,10 @@ private fun AppDetail(pkg: String, vm: AppsViewModel) {
         SwitchRow("Filter this app", row?.app?.filteringEnabled ?: true, { vm.setEnabled(pkg, it) }, subtitle = "Off = this app's DNS bypasses AdShield")
         BodyText(
             if ((row?.total ?: 0) > 0) "Statistics: ${formatCount(row!!.blocked)} blocked of ${formatCount(row.total)} lookups attributed to this app."
-            else "No lookups attributed to this app yet. Android usually resolves names in the system resolver, so attribution is best-effort.",
+            else "No lookups attributed to this app yet. Attribution depends on the Android version and is best-effort.",
         )
         SectionTitle("Allowed domains for this app")
-        BodyText("An allowed domain is never blocked for this app. Works only when Android lets AdShield attribute the lookup to the app.")
+        BodyText("An allowed domain is never blocked for this app. Works when Android lets AdShield attribute the lookup to the app (it did on the Android 17 test phone).")
         rules.forEach { r ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(r.domain, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)

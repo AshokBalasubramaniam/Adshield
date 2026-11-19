@@ -3,8 +3,6 @@ package com.adshield.vpn
 import android.content.Context
 import android.net.ConnectivityManager
 import android.os.Process
-import android.system.OsConstants
-import com.adshield.vpn.packet.UdpPacket
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.concurrent.ConcurrentHashMap
@@ -24,14 +22,26 @@ class AppUidResolver(context: Context, private val enabled: () -> Boolean) {
     private val attributed = AtomicInteger()
     private val unattributed = AtomicInteger()
 
-    fun resolve(p: UdpPacket): String? {
+    /** Counters for diagnostics: how many lookups could / could not be tied to an app. */
+    val attributedCount: Int get() = attributed.get()
+    val unattributedCount: Int get() = unattributed.get()
+
+    /** True once enough lookups were seen and none could be attributed (the system resolver owns the sockets). */
+    val systemResolverMasksApps: Boolean get() = attributed.get() == 0 && unattributed.get() >= GIVE_UP_AFTER
+
+    private val probeCounter = AtomicInteger()
+
+    fun resolve(protocol: Int, srcAddr: ByteArray, srcPort: Int, dstAddr: ByteArray, dstPort: Int): String? {
         if (!enabled()) return null
-        if (attributed.get() == 0 && unattributed.get() >= GIVE_UP_AFTER) return null
+        // After many fruitless attempts stop paying a binder call per query, but keep probing 1 in PROBE_EVERY:
+        // some apps (e.g. those with their own resolver) do own their DNS sockets, and a permanent give-up
+        // would never notice.
+        if (systemResolverMasksApps && probeCounter.incrementAndGet() % PROBE_EVERY != 0) return null
         val uid = try {
             cm.getConnectionOwnerUid(
-                OsConstants.IPPROTO_UDP,
-                InetSocketAddress(InetAddress.getByAddress(p.srcAddr), p.srcPort),
-                InetSocketAddress(InetAddress.getByAddress(p.dstAddr), p.dstPort),
+                protocol,
+                InetSocketAddress(InetAddress.getByAddress(srcAddr), srcPort),
+                InetSocketAddress(InetAddress.getByAddress(dstAddr), dstPort),
             )
         } catch (_: SecurityException) {
             Process.INVALID_UID
@@ -49,5 +59,6 @@ class AppUidResolver(context: Context, private val enabled: () -> Boolean) {
 
     private companion object {
         const val GIVE_UP_AFTER = 200
+        const val PROBE_EVERY = 20
     }
 }

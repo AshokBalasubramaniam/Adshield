@@ -60,7 +60,7 @@ fun NetworkScreen(onBack: (() -> Unit)?, vm: NetworkViewModel = hiltViewModel())
             when (privateDns) {
                 PrivateDnsMode.Mode.OFF -> "Off. Compatible."
                 PrivateDnsMode.Mode.AUTOMATIC -> "Automatic. Compatible: Android falls back to AdShield's plain DNS."
-                PrivateDnsMode.Mode.STRICT -> "Set to a specific provider. Android may bypass AdShield or fail lookups. Change it to Automatic or Off in system settings."
+                PrivateDnsMode.Mode.STRICT -> "Set to a specific provider. Depending on the Android version, DNS may bypass AdShield or fail. On the Android 17 test phone lookups still reached AdShield; check the YouTube protection counters on yours. Automatic or Off is the safe choice."
                 PrivateDnsMode.Mode.UNKNOWN -> "Could not be read."
             },
             when (privateDns) { PrivateDnsMode.Mode.STRICT -> false; PrivateDnsMode.Mode.UNKNOWN -> null; else -> true },

@@ -85,25 +85,31 @@ tools/       osv_scan.py
 
 | Check | Result |
 |---|---|
-| Unit + pipeline-integration tests (`testDebugUnitTest`) | ✅ **96 passed, 0 failed** (breakdown in `docs/TEST_PLAN.md`) |
+| Unit + pipeline-integration tests (`testDebugUnitTest`) | ✅ **151 passed, 0 failed** (breakdown in `docs/TEST_PLAN.md`) |
 | Android Lint, debug and release | ✅ **0 errors** (remaining warnings are "newer dependency version available" notices) |
 | detekt (project config) | ✅ 0 issues |
-| Release build (R8 minified, resources shrunk) | ✅ builds; `app-release-unsigned.apk` ≈ 2.9 MB |
+| Release build (R8 minified, resources shrunk) | ✅ builds; `app-release-unsigned.apk` ≈ 3.0 MB |
 | Shipped permissions (merged manifest, checked by the build task `verifyReleasePermissions` and `aapt2`) | ✅ exactly INTERNET, ACCESS_NETWORK_STATE, FOREGROUND_SERVICE, FOREGROUND_SERVICE_SPECIAL_USE, POST_NOTIFICATIONS |
-| Dependency scan (OSV.dev, 143 resolved artifacts) | ✅ 0 known advisories on 2026-11-14 (`docs/DEPENDENCY_REPORT.md`) |
+| Dependency scan (OSV.dev, 143 resolved artifacts) | ✅ 0 known advisories on 2026-11-19 (`docs/DEPENDENCY_REPORT.md`) |
 | Instrumented Room tests | ⚠️ compile, but **not executed** (no device/emulator available) |
 | **Run on a real device / emulator** | ❌ **Not done in the authoring environment** (no hardware virtualisation). The VPN service, consent flow, notification, per-app routing, recovery and battery behaviour are implemented against documented Android APIs and covered by pure-Kotlin tests for everything that does not need the OS, but they **must be validated on devices** with `docs/TEST_PLAN.md` before release. |
 | Verified ad removal in YouTube / JioHotstar | ❌ Not verified, and not claimed. |
 
 Bugs found by this tooling and fixed during development are listed in `docs/SECURITY_ASSESSMENT.md` §5 (an API-33-only call that would crash on Android 10–12, a foreground-service type with unmet preconditions, and WorkManager silently adding `WAKE_LOCK` and `RECEIVE_BOOT_COMPLETED`, which led to removing WorkManager).
 
+## YouTube protection (investigation and profile)
+
+`docs/YOUTUBE_ROOT_CAUSE_ANALYSIS.md` explains why YouTube ads still appear: in-stream ads come from the same hosts as the video and the player API, so a DNS filter **cannot** separate them. This work therefore did not add blocklist entries (guessing hosts would be unsafe) and instead added: CNAME-aware filtering, TCP DNS, per-list attribution of every decision, a **YouTube protection screen** (More → YouTube protection) with real session counters, a bounded in-memory diagnostic log (opt-in, export only on request), DNS-bypass signals, a Safe/Aggressive YouTube profile, and an honest playback-compatibility indicator. It never claims an ad was blocked because a lookup was.
+
+Check `docs/PERFORMANCE_COMPARISON.md` for the measured cost of these changes (rule lookups got faster and allocate about half as much as before).
+
 ## Known limitations
 
 * **Same-origin ads** (in-stream video ads, first-party feed ads) cannot be blocked by DNS.
 * **Encrypted DNS inside apps** (DoH/DoT to a hostname) is invisible to AdShield and is not filtered. AdShield never decrypts HTTPS. Some browsers have a "secure DNS" toggle.
-* **Android Private DNS set to a specific provider** may bypass the VPN's DNS or make lookups fail; use *Automatic* or *Off*. The app detects and warns.
-* **Per-app attribution is best-effort.** Android usually resolves names in the system resolver, so a lookup's socket owner is a system uid. AdShield then records it as "system resolver" and stops trying after 200 unsuccessful attempts. Per-app *switches* are reliable (they use VPN routing); per-app *allow rules and statistics* depend on attribution.
-* **Responses larger than the client's UDP buffer** are truncated (TC bit); the virtual DNS server does not speak TCP, so such clients cannot retry over TCP. Rare; modern resolvers advertise 1232-byte EDNS buffers.
+* **Android Private DNS set to a specific provider** may bypass the VPN's DNS or make lookups fail depending on the Android version. On the Android 17 test phone with Private DNS = `dns.adguard.com` AdShield still received the apps' lookups, but this is one device. Use *Automatic* or *Off* to be safe. The app detects the mode and the YouTube screen's counters show whether lookups arrive.
+* **Per-app attribution is best-effort and Android-version dependent.** On the Android 17 test phone (Galaxy S24) lookups were attributed to the YouTube app. Older versions may report the system resolver instead; AdShield then records "system resolver" and slows its attempts (it keeps probing 1 in 20). Per-app *switches* are reliable on every version (they use VPN routing).
+* **DNS-over-TCP is served by a minimal responder** (handshake, in-order data, chunking, FIN; bounded to 64 sessions). It is not a general TCP stack and has no retransmission timer; it has been tested at packet level only, **not yet on a device**.
 * **Plain upstream DNS is unencrypted** unless you choose DoH, exactly as it would be without AdShield.
 * Downloaded lists come from third parties; AdShield validates their shape and integrity-at-rest but cannot attest to their content. The phishing list aggregates feeds with non-commercial terms.
 

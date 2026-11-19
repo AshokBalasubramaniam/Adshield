@@ -1,6 +1,6 @@
 # Dependency vulnerability report
 
-Generated 2026-11-14 by `tools/osv_scan.py` against OSV.dev (aggregates GitHub Security Advisories, NVD-linked advisories and OSV-native sources) using the exact versions Gradle resolved.
+Generated 2026-11-19 by `tools/osv_scan.py` against OSV.dev (aggregates GitHub Security Advisories, NVD-linked advisories and OSV-native sources) using the exact versions Gradle resolved.
 
 - Artifacts scanned: **143**
 - Artifacts with known vulnerabilities: **0**

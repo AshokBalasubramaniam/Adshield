@@ -111,6 +111,7 @@ class DashboardViewModel @Inject constructor(
     val network: StateFlow<NetworkStatus> = networkMonitor.status.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NetworkStatus())
     val engine: StateFlow<EngineStatus> = ruleManager.status
     val privateDns: PrivateDnsMode.Mode get() = PrivateDnsMode.read(context)
+    val privateDnsHost: String? get() = PrivateDnsMode.hostname(context)
 
     val load: StateFlow<ServiceLoad> = flow {
         var lastCpu = Process.getElapsedCpuTime()
@@ -321,7 +322,11 @@ class DnsSettingsViewModel @Inject constructor(
 data class AppStatRow(val packageName: String, val label: String, val total: Long, val blocked: Long)
 
 @HiltViewModel
-class StatsViewModel @Inject constructor(private val statsRepo: StatsRepository, private val apps: AppRepository) : ViewModel() {
+class StatsViewModel @Inject constructor(
+    private val statsRepo: StatsRepository,
+    private val apps: AppRepository,
+    private val diagnostics: com.adshield.youtube.YoutubeDiagnostics,
+) : ViewModel() {
     val totals: StateFlow<StatsTotals> = statsRepo.totals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsTotals())
     val days: StateFlow<List<DayStat>> = statsRepo.lastDays(7).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val recent: StateFlow<List<RecentBlock>> = statsRepo.recentBlocks
@@ -329,7 +334,10 @@ class StatsViewModel @Inject constructor(private val statsRepo: StatsRepository,
         list.map { AppStatRow(it.packageName, if (it.packageName.isEmpty()) "" else apps.labelOf(it.packageName), it.total, it.blocked) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun reset() = viewModelScope.launch { statsRepo.reset() }
+    fun reset() = viewModelScope.launch {
+        statsRepo.reset()
+        diagnostics.clear()
+    }
 }
 
 // ---------- Network ----------

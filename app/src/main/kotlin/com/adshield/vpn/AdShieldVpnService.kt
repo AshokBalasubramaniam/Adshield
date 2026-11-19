@@ -21,10 +21,13 @@ import com.adshield.data.rules.RuleManager
 import com.adshield.data.settings.DnsSettings
 import com.adshield.data.settings.SettingsRepository
 import com.adshield.dns.DnsCache
+import com.adshield.dns.DnsEventSink
 import com.adshield.dns.DnsQueryProcessor
 import com.adshield.dns.DnsUpstream
 import com.adshield.domain.model.ProtectionState
 import com.adshield.engine.AdFilteringEngine
+import com.adshield.youtube.AttributionInfo
+import com.adshield.youtube.YoutubeDiagnostics
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -68,6 +71,7 @@ class AdShieldVpnService : VpnService() {
     @Inject lateinit var appRepo: AppRepository
     @Inject lateinit var networkMonitor: NetworkMonitor
     @Inject lateinit var stateHolder: ProtectionStateHolder
+    @Inject lateinit var diagnostics: YoutubeDiagnostics
 
     private val scope = CoroutineScope(
         SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e -> Log.e(TAG, "Unhandled", e) },
@@ -138,13 +142,19 @@ class AdShieldVpnService : VpnService() {
             cache = dnsCache,
             upstream = { upstream },
             blockMode = { dnsSettings.blockMode },
-            sink = statsRepo,
+            sink = DnsEventSink { event ->
+                statsRepo.onQuery(event)
+                diagnostics.onQuery(event)
+            },
         )
         val uidResolver = AppUidResolver(this) { dnsSettings.attributeQueriesToApps }
-        val loop = TunnelLoop(processor) { uidResolver.resolve(it) }
+        diagnostics.attributionProvider = {
+            AttributionInfo(uidResolver.attributedCount, uidResolver.unattributedCount, uidResolver.systemResolverMasksApps)
+        }
+        val loop = TunnelLoop(processor, { proto, src, sp, dst, dp -> uidResolver.resolve(proto, src, sp, dst, dp) }, diagnostics)
 
         kotlinx.coroutines.supervisorScope {
-            launchGuarded { settings.dns.collect { dnsSettings = it; rebuildUpstream() } }
+            launchGuarded { settings.dns.collect { dnsSettings = it; diagnostics.recording = it.youtubeDiagnostics; rebuildUpstream() } }
             launchGuarded { ruleManager.changes().drop(1).collect { runCatching { ruleManager.reload() } } }
             launchGuarded { networkMonitor.underlying.collect { onNetworkChanged(it) } }
             launchGuarded { statsLoop() }
@@ -315,6 +325,8 @@ class AdShieldVpnService : VpnService() {
 
     /** Stops foreground mode and the service. Does not wait for [protectionJob]; callers are on it or cancel it. */
     private fun shutdown(keepState: Boolean = false) {
+        diagnostics.recording = false
+        diagnostics.clear() // nothing about this session outlives it
         if (!keepState) stateHolder.set(ProtectionState.Stopped)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

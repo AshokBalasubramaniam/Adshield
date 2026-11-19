@@ -92,3 +92,14 @@ class RuleParserTest {
         parse(sb.toString())
     }
 }
+
+class SuffixesTest {
+    @Test fun suffixesListEveryParentIncludingTheTld() =
+        assertEquals(listOf("a.b.c.com", "b.c.com", "c.com", "com"), DomainSet.Suffixes.of("a.b.c.com").parts.toList())
+    @Test fun singleLabelHasOneSuffix() = assertEquals(listOf("localhost"), DomainSet.Suffixes.of("localhost").parts.toList())
+    @Test fun precomputedAndPlainLookupsAgree() {
+        val s = DomainSet.of("ads.example.com", "tracker.net", "example.org")
+        listOf("x.ads.example.com", "ads.example.com", "example.com", "a.tracker.net", "deep.a.b.example.org", "other.io", "tracker.net.evil.io")
+            .forEach { assertEquals(it, s.findMatch(it), s.findMatch(DomainSet.Suffixes.of(it))) }
+    }
+}

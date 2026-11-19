@@ -2,6 +2,7 @@ package com.adshield.vpn
 
 import com.adshield.vpn.packet.IpPacketBuilder
 import com.adshield.vpn.packet.IpPacketParser
+import com.adshield.vpn.packet.TcpFlags
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -34,13 +35,33 @@ class IpPacketTest {
     @Test fun udpV6RoundTrip() = check(v6c, v6s)
 
     @Test fun tcpSynGetsRst() {
-        val syn = ByteArray(40); syn[0] = 0x45; syn[2] = 0; syn[3] = 40; syn[9] = 6; v4c.copyInto(syn, 12); v4s.copyInto(syn, 16)
-        syn[20] = 0x9C.toByte(); syn[21] = 0x40; syn[22] = 0; syn[23] = 53; syn[24] = 0; syn[25] = 0; syn[26] = 0; syn[27] = 9; syn[32] = 0x50; syn[33] = 0x02
-        val s = (IpPacketParser.parse(syn, 40) as IpPacketParser.Result.Syn).syn
-        assertEquals(53, s.dstPort); assertEquals(9L, s.seq)
-        val rst = IpPacketBuilder.tcpResetFor(s)
-        assertEquals(0x14, rst[33].toInt() and 0xFF); assertEquals(10, rst[31].toInt()) // ack = seq+1
+        val syn = IpPacketBuilder.buildTcp(v4c, v4s, 40000, 853, 9, 0, TcpFlags.SYN, ByteArray(0), mss = 1400)
+        val seg = (IpPacketParser.parse(syn, syn.size) as IpPacketParser.Result.Tcp).segment
+        assertEquals(853, seg.dstPort); assertEquals(9L, seg.seq); assertTrue(seg.syn && !seg.hasAck)
+        val rst = IpPacketBuilder.tcpResetFor(seg)
+        assertEquals(TcpFlags.RST or TcpFlags.ACK, rst[33].toInt() and 0xFF); assertEquals(10, rst[31].toInt()) // ack = seq+1
         assertEquals(0, IpPacketBuilder.transportChecksum(rst, 20, 20, v4s, v4c, 6))
+    }
+
+    @Test fun tcpParsingKeepsFlagsSeqAckAndPayload() {
+        val pkt = IpPacketBuilder.buildTcp(v6c, v6s, 1234, 53, 0xFFFFFFF0L, 77, TcpFlags.PSH or TcpFlags.ACK, byteArrayOf(1, 2, 3))
+        val s = (IpPacketParser.parse(pkt, pkt.size) as IpPacketParser.Result.Tcp).segment
+        assertEquals(0xFFFFFFF0L, s.seq); assertEquals(77L, s.ack); assertTrue(s.hasAck && !s.syn && !s.fin)
+        assertArrayEquals(byteArrayOf(1, 2, 3), s.payload)
+        assertEquals(0, IpPacketBuilder.transportChecksum(pkt, 40, pkt.size - 40, v6c, v6s, 6))
+    }
+
+    @Test fun resetForAckedSegmentUsesItsAckAsSequence() {
+        val pkt = IpPacketBuilder.buildTcp(v4c, v4s, 5, 53, 100, 555, TcpFlags.ACK, ByteArray(0))
+        val s = (IpPacketParser.parse(pkt, pkt.size) as IpPacketParser.Result.Tcp).segment
+        val rst = (IpPacketParser.parse(IpPacketBuilder.tcpResetFor(s), 40) as IpPacketParser.Result.Tcp).segment
+        assertEquals(555L, rst.seq); assertEquals(TcpFlags.RST, rst.flags)
+    }
+
+    @Test fun badTcpDataOffsetIsRejected() {
+        val pkt = IpPacketBuilder.buildTcp(v4c, v4s, 5, 53, 1, 0, TcpFlags.ACK, ByteArray(4))
+        assertNull(IpPacketParser.parse(pkt.copyOf().also { it[32] = 0x40 }, pkt.size)) // offset < 20
+        assertNull(IpPacketParser.parse(pkt.copyOf().also { it[32] = 0xF0.toByte() }, pkt.size)) // offset beyond packet
     }
 
     @Test fun rejectsFragmentsAndBadLengths() {

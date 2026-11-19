@@ -120,7 +120,7 @@ fun DnsSettingsScreen(onBack: (() -> Unit)?, vm: DnsSettingsViewModel = hiltView
                 Panel {
                     SwitchRow(
                         "Attribute lookups to apps (best effort)", s.attributeQueriesToApps, { vm.setAttribute(it) },
-                        subtitle = "Needed for per-app statistics and per-app allow rules. Android often hides which app asked; AdShield stops trying automatically if it never succeeds.",
+                        subtitle = "Needed for per-app statistics and per-app allow rules. Depends on the Android version; if attribution never succeeds AdShield slows down its attempts (and keeps probing occasionally).",
                     )
                 }
             }
@@ -131,7 +131,7 @@ fun DnsSettingsScreen(onBack: (() -> Unit)?, vm: DnsSettingsViewModel = hiltView
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         BodyText("•  AdShield never intercepts or decrypts HTTPS. It sees only DNS lookups, not page content.", color = MaterialTheme.colorScheme.onSurface)
                         BodyText("•  Apps that carry their own encrypted DNS (DoH/DoT to a name AdShield cannot see) are not filtered.", color = MaterialTheme.colorScheme.onSurface)
-                        BodyText("•  If Android's Private DNS is set to a specific provider, lookups may bypass AdShield. Use Automatic or Off.", color = MaterialTheme.colorScheme.onSurface)
+                        BodyText("•  If Android's Private DNS is set to a specific provider, lookups may bypass AdShield depending on the Android version. Automatic or Off is the safe choice.", color = MaterialTheme.colorScheme.onSurface)
                         BodyText("•  Ads served from the same domain as content cannot be separated from it.", color = MaterialTheme.colorScheme.onSurface)
                     }
                 }

@@ -8,8 +8,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.adshield.BuildConfig
 import com.adshield.domain.model.BlockMode
 import com.adshield.domain.model.UpstreamMode
+import com.adshield.domain.model.YoutubeProfile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -29,6 +31,8 @@ data class DnsSettings(
     val captureKnownResolvers: Boolean = true,
     val protectStreamingFirstParty: Boolean = true,
     val attributeQueriesToApps: Boolean = true,
+    val youtubeProfile: YoutubeProfile = YoutubeProfile.SAFE,
+    val youtubeDiagnostics: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_DOH_URL = "https://cloudflare-dns.com/dns-query"
@@ -50,6 +54,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
         val captureResolvers = booleanPreferencesKey("capture_known_resolvers")
         val protectStreaming = booleanPreferencesKey("protect_streaming_first_party")
         val attribute = booleanPreferencesKey("attribute_queries_to_apps")
+        val youtubeProfile = stringPreferencesKey("youtube_profile")
+        val youtubeDiag = booleanPreferencesKey("youtube_diagnostics")
     }
 
     private val data: Flow<Preferences> = store.data.catchIo()
@@ -67,6 +73,9 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
             captureKnownResolvers = p[K.captureResolvers] ?: true,
             protectStreamingFirstParty = p[K.protectStreaming] ?: true,
             attributeQueriesToApps = p[K.attribute] ?: true,
+            youtubeProfile = enumOr(p[K.youtubeProfile], YoutubeProfile.SAFE),
+            // Developer (debug) builds record by default so lookups can be observed; release builds default to off.
+            youtubeDiagnostics = p[K.youtubeDiag] ?: BuildConfig.DEBUG,
         )
     }
 
@@ -81,6 +90,8 @@ class SettingsRepository @Inject constructor(@ApplicationContext private val con
     suspend fun setCaptureKnownResolvers(v: Boolean) = store.edit { it[K.captureResolvers] = v }
     suspend fun setProtectStreamingFirstParty(v: Boolean) = store.edit { it[K.protectStreaming] = v }
     suspend fun setAttributeQueries(v: Boolean) = store.edit { it[K.attribute] = v }
+    suspend fun setYoutubeProfile(v: YoutubeProfile) = store.edit { it[K.youtubeProfile] = v.name }
+    suspend fun setYoutubeDiagnostics(v: Boolean) = store.edit { it[K.youtubeDiag] = v }
 
     private fun Flow<Preferences>.catchIo(): Flow<Preferences> =
         catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }

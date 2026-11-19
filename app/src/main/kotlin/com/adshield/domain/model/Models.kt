@@ -13,13 +13,35 @@ enum class AllowReason { NO_MATCH, ESSENTIAL, USER_GLOBAL, USER_APP }
 
 sealed interface FilterDecision {
     data class Allow(val reason: AllowReason) : FilterDecision
-    data class Block(val category: BlockCategory, val matchedRule: String) : FilterDecision
+    /**
+     * @param sourceId id of the filter list that contained [matchedRule] (null for user rules / tests).
+     * @param viaCname set when the *queried* name was clean but its CNAME target matched [matchedRule].
+     */
+    data class Block(
+        val category: BlockCategory,
+        val matchedRule: String,
+        val sourceId: String? = null,
+        val viaCname: String? = null,
+    ) : FilterDecision
 }
 
 /** How a blocked DNS query is answered. */
 enum class BlockMode(val label: String, val description: String) {
     NULL_IP("Null address", "Answers A/AAAA with 0.0.0.0 / :: so apps fail fast without waiting for a timeout."),
     NXDOMAIN("NXDOMAIN", "Answers that the domain does not exist."),
+}
+
+/** How strictly YouTube's own first-party hosts are protected from public lists. */
+enum class YoutubeProfile(val label: String, val description: String) {
+    SAFE(
+        "Safe (default)",
+        "youtube.com and its subdomains are never blocked by public lists, because playback, sign-in, comments and search share those hosts with everything else.",
+    ),
+    AGGRESSIVE(
+        "Aggressive",
+        "Lets public lists block hosts under youtube.com. Video CDN (googlevideo.com), thumbnails, DRM and sign-in stay protected. " +
+            "May break features; use the diagnostics log to find and allow what breaks.",
+    ),
 }
 
 enum class UpstreamMode(val label: String) {

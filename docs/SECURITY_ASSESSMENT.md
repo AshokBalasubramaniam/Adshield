@@ -28,7 +28,10 @@ Trust boundaries: (a) apps → tunnel (untrusted packets), (b) device → list p
 | T9 | Over-broad permissions / package visibility | Exactly 5 permissions; apps listed through a launcher-intent `<queries>` element, not `QUERY_ALL_PACKAGES`. | `PrivacyPolicyTest.requestsExactlyTheMinimumPermissions` |
 | T10 | Traffic accidentally routed wholesale through the tunnel | Only `/32` and `/128` routes are added; a test fails the build if a default route or `allowBypass` appears. | `PrivacyPolicyTest.vpnServiceAddsOnlyDnsRoutesNeverADefaultRoute` |
 | T11 | Another app abusing the VPN service | Service is exported only because the system must bind it, and is protected by the signature permission `BIND_VPN_SERVICE`. Start/stop intents are handled inside the app; the notification action uses an immutable `PendingIntent`. | Manifest |
-| T12 | Sensitive data in logs | Domains are never logged. Logs contain only generic failure descriptions. | Code review |
+| T12 | Sensitive data in logs | Domain names are never written to disk or to release-build logs. **Debug builds only** mirror YouTube-related decisions to logcat (tag `AdShieldDiag`, guarded by `BuildConfig.DEBUG`) for development; release builds contain no such statement (checked in the release dex). The in-app YouTube log is memory-only, bounded (1,500), opt-in, cleared when protection stops, and exported only by explicit user action through the system file picker. | Code review, dex check |
+| T14 | Memory/CPU exhaustion or state confusion in the new TCP DNS responder | At most 64 sessions, 15 s idle expiry, 64 KiB per message, zero-length message → RST, only passive opens, no retransmission state. Out-of-order/duplicate data is re-ACKed, never re-delivered. 20 000 random segment sequences never throw. | `TcpDnsSessionsTest` |
+| T15 | CNAME parsing abuse (pointer loops, oversized/invalid names, truncation) | Hop cap 16, 253-char cap, syntax validation, at most 64 answers examined; malformed names skipped. Fuzzed with 30 000 mutated and 30 000 random messages, truncated at every length. | `CnameParserTest` |
+| T16 | Diagnostics leaking browsing history | Only YouTube-related names (or lookups attributed to the YouTube app) are recorded; recording is off by default; counters hold no names; nothing persisted; no network code references the log. | `YoutubeDiagnosticsTest`, `PrivacyPolicyTest` |
 | T13 | Malicious user-supplied URL / domain / IP | List URLs: https only, host required, no embedded credentials. Custom upstream accepts numeric IP literals only (no resolution). DoH URL validated. Rules validated by `DomainNormalizer`. | `ListDownloaderTest`, `UpstreamLoopbackTest`, `DomainNormalizerTest` |
 
 ## 3. Privacy review
@@ -53,9 +56,15 @@ Trust boundaries: (a) apps → tunnel (untrusted packets), (b) device → list p
 | F2 | Medium (potential `SecurityException` on Android 14+) | `systemExempted` foreground-service type has preconditions a VPN app may not meet. Found by Android Lint. | **Fixed** — switched to `specialUse`. |
 | F3 | Low | Default list URL (URLhaus hostfile) returned HTTP 410 at integration time. | **Fixed** — switched to the maintained malware-filter republication; downloader reports failures per list rather than failing silently. |
 | F9 | Medium (privacy requirement) | WorkManager injected `WAKE_LOCK` and `RECEIVE_BOOT_COMPLETED` into the *merged* manifest; the source-manifest test could not see it. Found by dumping the release APK's permissions. | **Fixed** — WorkManager removed; list refresh now runs inside the protection service (unmetered + battery-not-low only). Build task `verifyReleasePermissions` now fails the build on any unapproved merged permission (verified to fail when `WAKE_LOCK` is injected). |
+| F10 | Medium (filtering gap) | CNAME-cloaked ad/tracker hosts were not filtered; cached answers were never re-checked against updated rules. | **Fixed** and tested. |
+| F11 | Medium (reliability) | All TCP DNS was refused (RST), so truncated UDP answers could not be completed. | **Fixed** (minimal, bounded TCP responder). Device behaviour unverified. |
+| F12 | Medium (feature silently dead) | App attribution gave up permanently after 200 unattributed lookups. | **Fixed** (keeps probing 1 in 20). |
+| F13 | Medium (diagnosability) | Block decisions did not identify the list/rule responsible. | **Fixed** (per-list sets, rule and list id on every decision). |
+| F14 | Low (documentation accuracy) | Two statements were contradicted by the first device run: that Android usually hides the app owning DNS sockets, and that strict Private DNS bypasses the VPN's DNS. | **Corrected** in UI copy and docs; evidence in `YOUTUBE_ROOT_CAUSE_ANALYSIS.md` §7. |
+| F15 | Low | `InstallSourceInfo` (API 30) used with minSdk 29 would crash on Android 10. Found by Android Lint. | **Fixed** (SDK guard + deprecated fallback). |
 | F4 | Info | Aggregated "unified hosts" lists mix licenses; | **Mitigated** — only single-license lists are shipped by default; licenses are shown per list. |
 | F5 | Open | No DNSSEC validation; plain upstream DNS is unencrypted unless DoH is selected. | Documented; DoH option provided. |
-| F6 | Open | Virtual DNS server does not support DNS-over-TCP; oversized answers are truncated. | Documented; rare with EDNS 1232. |
+| F6 | Fixed (device-unverified) | Virtual DNS server did not support DNS-over-TCP. | Minimal TCP responder added and tested at packet level; confirm on device. |
 | F7 | Open | Behaviour on real devices (OEM battery managers, always-on VPN, Private DNS strict, multi-user/work profiles) not yet validated. | See `TEST_PLAN.md`. |
 | F8 | Open | Phishing list aggregates feeds with non-commercial terms. | Fine for non-commercial use; review before commercial distribution. |
 

@@ -10,7 +10,9 @@ import com.adshield.domain.model.BlockCategory
 import com.adshield.domain.model.EngineStatus
 import com.adshield.engine.AdFilteringEngine
 import com.adshield.engine.DomainNormalizer
+import com.adshield.domain.model.YoutubeProfile
 import com.adshield.engine.DomainSet
+import com.adshield.engine.ListSet
 import com.adshield.engine.RuleParser
 import com.adshield.engine.RuleSnapshot
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -31,7 +33,6 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.File
 import java.io.IOException
-import java.util.EnumMap
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -75,13 +76,14 @@ class RuleManager @Inject constructor(
     }
 
     private suspend fun buildSnapshot(): RuleSnapshot {
-        val builders = EnumMap<BlockCategory, DomainSet.Builder>(BlockCategory::class.java)
+        val listSets = ArrayList<ListSet>()
         for (src in blocklistDao.getAll()) {
             if (!src.enabled) continue
             val category = runCatching { BlockCategory.valueOf(src.category) }.getOrDefault(BlockCategory.ADS)
-            val builder = builders.getOrPut(category) { DomainSet.Builder(4096) }
+            val builder = DomainSet.Builder(4096)
             val accepted = openSource(src)?.use { reader -> RuleParser.parse(reader) { builder.add(it) }.accepted } ?: continue
             if (src.domainCount != accepted) blocklistDao.setCount(src.id, accepted)
+            listSets += ListSet(src.id, src.name, category, builder.build())
         }
 
         val allow = DomainSet.Builder()
@@ -95,13 +97,15 @@ class RuleManager @Inject constructor(
                 else -> perApp.getOrPut(rule.packageName) { DomainSet.Builder() }.add(d)
             }
         }
+        val dns = settings.dns.first()
         return RuleSnapshot(
-            categorySets = builders.mapValues { it.value.build() },
+            listSets = listSets,
             userBlock = block.build(),
             userAllowGlobal = allow.build(),
             userAllowByApp = perApp.mapValues { it.value.build() },
             loadedAtMillis = System.currentTimeMillis(),
-            protectStreamingFirstParty = settings.dns.first().protectStreamingFirstParty,
+            protectStreamingFirstParty = dns.protectStreamingFirstParty,
+            protectYoutubeFirstParty = dns.youtubeProfile == YoutubeProfile.SAFE,
         )
     }
 
@@ -133,7 +137,7 @@ class RuleManager @Inject constructor(
     fun changes(): Flow<Unit> = combine(
         blocklistDao.observeAll().map { list -> list.map { Triple(it.id, it.enabled, it.sha256) } },
         userRuleDao.observeAll(),
-        settings.dns.map { it.protectStreamingFirstParty },
+        settings.dns.map { it.protectStreamingFirstParty to it.youtubeProfile },
     ) { a, b, c -> Triple(a, b, c) }
         .distinctUntilChanged()
         .debounce(400)

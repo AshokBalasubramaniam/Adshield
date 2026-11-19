@@ -7,6 +7,38 @@ package com.adshield.engine
 class DomainSet private constructor(private val domains: HashSet<String>) {
     val size: Int get() = domains.size
 
+    /**
+     * The domain and each of its parent suffixes, computed once so several sets can be probed without re-allocating
+     * the substrings for every set ("a.b.c.com" -> a.b.c.com, b.c.com, c.com, com).
+     */
+    class Suffixes private constructor(@JvmField val parts: Array<String>) {
+        companion object {
+            fun of(domain: String): Suffixes {
+                var count = 1
+                for (c in domain) if (c == '.') count++
+                val out = arrayOfNulls<String>(count)
+                var cur = domain
+                var i = 0
+                while (true) {
+                    out[i++] = cur
+                    val dot = cur.indexOf('.')
+                    if (dot < 0) break
+                    cur = cur.substring(dot + 1)
+                }
+                @Suppress("UNCHECKED_CAST")
+                return Suffixes(out as Array<String>)
+            }
+        }
+    }
+
+    /** Same as [findMatch] but reuses precomputed [suffixes] (no allocation). */
+    fun findMatch(suffixes: Suffixes): String? {
+        if (domains.isEmpty()) return null
+        val parts = suffixes.parts
+        for (i in parts.indices) if (parts[i] in domains) return parts[i]
+        return null
+    }
+
     /** Returns the matching rule (the domain or its closest matching parent), or null. */
     fun findMatch(domain: String): String? {
         if (domains.isEmpty()) return null

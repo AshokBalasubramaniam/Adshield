@@ -43,6 +43,7 @@ import com.adshield.ui.screens.OnboardingScreen
 import com.adshield.ui.screens.PrivacyScreen
 import com.adshield.ui.screens.RulesScreen
 import com.adshield.ui.screens.StatsScreen
+import com.adshield.ui.screens.YoutubeScreen
 import com.adshield.ui.theme.Palette
 
 object Routes {
@@ -58,6 +59,7 @@ object Routes {
     const val BATTERY = "battery"
     const val PRIVACY = "privacy"
     const val ABOUT = "about"
+    const val YOUTUBE = "youtube"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -122,15 +124,16 @@ fun AppNav(startOnboarding: Boolean) {
                     onOpenNetwork = { nav.navigate(Routes.NETWORK) }, onOpenBattery = { nav.navigate(Routes.BATTERY) },
                 )
             }
-            composable(Routes.APPS, enterTransition = { fadeIn() }, exitTransition = { fadeOut() }) { AppsScreen() }
+            composable(Routes.APPS, enterTransition = { fadeIn() }, exitTransition = { fadeOut() }) { AppsScreen(onOpenYoutube = { nav.navigate(Routes.YOUTUBE) }) }
             composable(Routes.LISTS, enterTransition = { fadeIn() }, exitTransition = { fadeOut() }) { BlocklistsScreen(onBack = null) }
             composable(Routes.STATS, enterTransition = { fadeIn() }, exitTransition = { fadeOut() }) { StatsScreen() }
             composable(Routes.MORE, enterTransition = { fadeIn() }, exitTransition = { fadeOut() }) {
                 MoreScreen(
-                    onDns = { nav.navigate(Routes.DNS) }, onRules = { nav.navigate(Routes.RULES) }, onNetwork = { nav.navigate(Routes.NETWORK) },
+                    onYoutube = { nav.navigate(Routes.YOUTUBE) }, onDns = { nav.navigate(Routes.DNS) }, onRules = { nav.navigate(Routes.RULES) }, onNetwork = { nav.navigate(Routes.NETWORK) },
                     onBattery = { nav.navigate(Routes.BATTERY) }, onPrivacy = { nav.navigate(Routes.PRIVACY) }, onAbout = { nav.navigate(Routes.ABOUT) },
                 )
             }
+            composable(Routes.YOUTUBE) { YoutubeScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.DNS) { DnsSettingsScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.RULES) { RulesScreen(onBack = { nav.popBackStack() }) }
             composable(Routes.NETWORK) { NetworkScreen(onBack = { nav.popBackStack() }) }

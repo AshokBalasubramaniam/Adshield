@@ -10,7 +10,10 @@ class DnsCache(
     private val negativeTtlSeconds: Long = 30,
     private val nanoClock: () -> Long = System::nanoTime,
 ) {
-    private class Entry(val response: ByteArray, val expiresAtNanos: Long)
+    /** A cached upstream answer plus the CNAME targets it contains (re-checked against current rules on every hit). */
+    class CachedAnswer(val response: ByteArray, val cnames: List<String>)
+
+    private class Entry(val response: ByteArray, val cnames: List<String>, val expiresAtNanos: Long)
 
     private val map = object : LinkedHashMap<String, Entry>(256, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>?): Boolean = size > maxEntries
@@ -19,7 +22,10 @@ class DnsCache(
     private fun key(query: DnsQuery) = "${query.name}/${query.type}/${query.qclass}"
 
     /** Returns a copy of the cached response re-addressed to [query], or null. */
-    fun get(query: DnsQuery): ByteArray? {
+    fun get(query: DnsQuery): ByteArray? = lookup(query)?.response
+
+    /** Like [get] but also returns the CNAME targets, so callers can re-apply filtering rules that changed since caching. */
+    fun lookup(query: DnsQuery): CachedAnswer? {
         val entry = synchronized(map) { map[key(query)] } ?: return null
         if (nanoClock() >= entry.expiresAtNanos) {
             synchronized(map) { map.remove(key(query)) }
@@ -33,17 +39,17 @@ class DnsCache(
         if (out.size >= DnsParser.HEADER_SIZE + qLen) {
             System.arraycopy(query.raw, DnsParser.HEADER_SIZE, out, DnsParser.HEADER_SIZE, qLen)
         }
-        return out
+        return CachedAnswer(out, entry.cnames)
     }
 
-    fun put(query: DnsQuery, response: ByteArray) {
+    fun put(query: DnsQuery, response: ByteArray, cnames: List<String> = DnsParser.cnameTargets(response)) {
         val rcode = DnsParser.rcode(response)
         if (rcode != DnsRcode.NOERROR && rcode != DnsRcode.NXDOMAIN) return
         if (DnsParser.isTruncated(response)) return
         val ttl = (DnsParser.minTtl(response) ?: negativeTtlSeconds).coerceAtMost(maxTtlSeconds)
         if (ttl <= 0) return
         val expires = nanoClock() + ttl * 1_000_000_000L
-        synchronized(map) { map[key(query)] = Entry(response.copyOf(), expires) }
+        synchronized(map) { map[key(query)] = Entry(response.copyOf(), cnames, expires) }
     }
 
     fun clear() = synchronized(map) { map.clear() }

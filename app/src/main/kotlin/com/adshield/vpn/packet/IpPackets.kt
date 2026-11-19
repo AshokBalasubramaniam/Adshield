@@ -11,14 +11,30 @@ class UdpPacket(
     val isIpv6: Boolean get() = srcAddr.size == 16
 }
 
-/** A TCP SYN (no ACK) seen on the tunnel; we answer with RST because we do not terminate TCP. */
-class TcpSyn(
+/** A TCP segment seen on the tunnel. [seq]/[ack] are unsigned 32-bit values held in a Long. */
+class TcpSegment(
     val srcAddr: ByteArray,
     val dstAddr: ByteArray,
     val srcPort: Int,
     val dstPort: Int,
     val seq: Long,
-)
+    val ack: Long,
+    val flags: Int,
+    val payload: ByteArray,
+) {
+    val syn: Boolean get() = flags and TcpFlags.SYN != 0
+    val fin: Boolean get() = flags and TcpFlags.FIN != 0
+    val rst: Boolean get() = flags and TcpFlags.RST != 0
+    val hasAck: Boolean get() = flags and TcpFlags.ACK != 0
+}
+
+object TcpFlags {
+    const val FIN = 0x01
+    const val SYN = 0x02
+    const val RST = 0x04
+    const val PSH = 0x08
+    const val ACK = 0x10
+}
 
 /**
  * Minimal, strictly bounds-checked IPv4/IPv6 parsing. Unsupported or malformed packets
@@ -30,7 +46,7 @@ object IpPacketParser {
 
     sealed interface Result {
         data class Udp(val packet: UdpPacket) : Result
-        data class Syn(val syn: TcpSyn) : Result
+        data class Tcp(val segment: TcpSegment) : Result
     }
 
     fun parse(buf: ByteArray, length: Int): Result? {
@@ -77,11 +93,12 @@ object IpPacketParser {
             }
             PROTO_TCP -> {
                 if (end - off < 20) return null
-                val flags = b[off + 13].toInt() and 0xFF
-                val syn = flags and 0x02 != 0
-                val ack = flags and 0x10 != 0
-                if (!syn || ack) return null
-                return Result.Syn(TcpSyn(src, dst, u16(b, off), u16(b, off + 2), u32(b, off + 4)))
+                val dataOffset = ((b[off + 12].toInt() and 0xF0) shr 4) * 4
+                if (dataOffset < 20 || off + dataOffset > end) return null
+                val payload = b.copyOfRange(off + dataOffset, end)
+                return Result.Tcp(
+                    TcpSegment(src, dst, u16(b, off), u16(b, off + 2), u32(b, off + 4), u32(b, off + 8), b[off + 13].toInt() and 0xFF, payload),
+                )
             }
         }
         return null
@@ -113,22 +130,42 @@ object IpPacketBuilder {
         return p
     }
 
-    /** RST+ACK answering a SYN, so the client fails fast instead of waiting for a timeout. */
-    fun tcpResetFor(syn: TcpSyn): ByteArray {
-        val src = syn.dstAddr
-        val dst = syn.srcAddr
+    /** RFC 793 reset for a segment that belongs to no session: lets clients fail fast instead of timing out. */
+    fun tcpResetFor(seg: TcpSegment): ByteArray =
+        if (seg.hasAck) {
+            buildTcp(seg.dstAddr, seg.srcAddr, seg.dstPort, seg.srcPort, seg.ack, 0, TcpFlags.RST, ByteArray(0))
+        } else {
+            val consumed = seg.payload.size + (if (seg.syn) 1 else 0) + (if (seg.fin) 1 else 0)
+            buildTcp(seg.dstAddr, seg.srcAddr, seg.dstPort, seg.srcPort, 0, (seg.seq + consumed) and 0xFFFFFFFFL, TcpFlags.RST or TcpFlags.ACK, ByteArray(0))
+        }
+
+    @Suppress("LongParameterList") // one parameter per TCP header field is the natural shape of a wire-format builder
+    /** Builds a TCP segment (window 65535). [mss] adds the MSS option (only meaningful on SYN segments). */
+    fun buildTcp(
+        src: ByteArray, dst: ByteArray, srcPort: Int, dstPort: Int,
+        seq: Long, ack: Long, flags: Int, payload: ByteArray, mss: Int? = null,
+    ): ByteArray {
         val v6 = src.size == 16
         val ipLen = if (v6) 40 else 20
-        val total = ipLen + 20
+        val tcpHeader = if (mss != null) 24 else 20
+        val tcpLen = tcpHeader + payload.size
+        val total = ipLen + tcpLen
+        require(total <= 0xFFFF) { "segment too large" }
         val p = ByteArray(total)
-        writeIpHeader(p, v6, src, dst, protocol = 6, transportLen = 20, totalLen = total)
-        put16(p, ipLen, syn.dstPort)
-        put16(p, ipLen + 2, syn.srcPort)
-        put32(p, ipLen + 4, 0)
-        put32(p, ipLen + 8, (syn.seq + 1) and 0xFFFFFFFFL)
-        p[ipLen + 12] = (5 shl 4).toByte()
-        p[ipLen + 13] = 0x14.toByte() // RST | ACK
-        put16(p, ipLen + 16, transportChecksum(p, ipLen, 20, src, dst, 6))
+        writeIpHeader(p, v6, src, dst, protocol = 6, transportLen = tcpLen, totalLen = total)
+        put16(p, ipLen, srcPort)
+        put16(p, ipLen + 2, dstPort)
+        put32(p, ipLen + 4, seq and 0xFFFFFFFFL)
+        put32(p, ipLen + 8, ack and 0xFFFFFFFFL)
+        p[ipLen + 12] = ((tcpHeader / 4) shl 4).toByte()
+        p[ipLen + 13] = flags.toByte()
+        put16(p, ipLen + 14, 0xFFFF) // window
+        if (mss != null) {
+            p[ipLen + 20] = 2; p[ipLen + 21] = 4
+            put16(p, ipLen + 22, mss)
+        }
+        payload.copyInto(p, ipLen + tcpHeader)
+        put16(p, ipLen + 16, transportChecksum(p, ipLen, tcpLen, src, dst, 6))
         return p
     }
 

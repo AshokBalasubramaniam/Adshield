@@ -23,6 +23,12 @@ object VpnConfig {
         "2001:4860:4860::8888", "2001:4860:4860::8844", "2606:4700:4700::1111", "2606:4700:4700::1001", "2620:fe::fe",
     )
 
+    private val V4_DNS_BYTES = java.net.InetAddress.getByName(V4_DNS).address
+    private val V6_DNS_BYTES = java.net.InetAddress.getByName(V6_DNS).address
+
+    /** True if [addr] is one of AdShield's own virtual DNS addresses (as opposed to a captured public resolver). */
+    fun isVirtualDns(addr: ByteArray): Boolean = addr.contentEquals(V4_DNS_BYTES) || addr.contentEquals(V6_DNS_BYTES)
+
     const val ACTION_START = "com.adshield.action.START"
     const val ACTION_STOP = "com.adshield.action.STOP"
     const val NOTIFICATION_CHANNEL = "protection"

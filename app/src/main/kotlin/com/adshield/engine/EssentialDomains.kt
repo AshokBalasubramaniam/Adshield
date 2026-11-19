@@ -27,10 +27,11 @@ object EssentialDomains {
         "fcm.googleapis.com", "accounts.google.com", "android.apis.google.com",
     )
 
-    /** Streaming-service first-party domains (suffix match). */
-    val streamingFirstParty: DomainSet = DomainSet.of(
-        "youtube.com", "hotstar.com", "jiohotstar.com", "jiocinema.com", "hotstarext.com",
-    )
+    /** YouTube first-party domain (suffix match); governed by the YouTube profile. */
+    val youtubeFirstParty: DomainSet = DomainSet.of("youtube.com")
+
+    /** Other streaming-service first-party domains (suffix match). */
+    val streamingFirstParty: DomainSet = DomainSet.of("hotstar.com", "jiohotstar.com", "jiocinema.com", "hotstarext.com")
 
     /** Match only that exact host; their parent domains also host ad services. */
     val exact: Set<String> = setOf(
@@ -38,6 +39,18 @@ object EssentialDomains {
         "connectivitycheck.gstatic.com", "android.com", "www.android.com", "dl.google.com",
     )
 
-    fun isEssential(domain: String, protectStreamingFirstParty: Boolean = true): Boolean =
-        domain in exact || coreSuffixes.contains(domain) || (protectStreamingFirstParty && streamingFirstParty.contains(domain))
+    fun isEssential(
+        domain: String,
+        suffixes: DomainSet.Suffixes,
+        protectStreamingFirstParty: Boolean = true,
+        protectYoutubeFirstParty: Boolean = true,
+    ): Boolean =
+        domain in exact || coreSuffixes.findMatch(suffixes) != null ||
+            (protectStreamingFirstParty && streamingFirstParty.findMatch(suffixes) != null) ||
+            (protectYoutubeFirstParty && youtubeFirstParty.findMatch(suffixes) != null)
+
+    fun isEssential(domain: String, protectStreamingFirstParty: Boolean = true, protectYoutubeFirstParty: Boolean = true): Boolean =
+        domain in exact || coreSuffixes.contains(domain) ||
+            (protectStreamingFirstParty && streamingFirstParty.contains(domain)) ||
+            (protectYoutubeFirstParty && youtubeFirstParty.contains(domain))
 }

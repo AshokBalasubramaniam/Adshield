@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material.icons.rounded.Rule
 import androidx.compose.material.icons.rounded.Wifi
@@ -79,11 +80,13 @@ private fun InfoList(padding: PaddingValues, content: androidx.compose.foundatio
 
 @Composable
 fun MoreScreen(
+    onYoutube: () -> Unit,
     onDns: () -> Unit, onRules: () -> Unit, onNetwork: () -> Unit,
     onBattery: () -> Unit, onPrivacy: () -> Unit, onAbout: () -> Unit,
 ) {
     ScreenScaffold(title = "More") { padding ->
         InfoList(padding) {
+            item { MenuRow("YouTube protection", "Status, diagnostics log and compatibility", Icons.Rounded.PlayCircle, onYoutube) }
             item { MenuRow("DNS filtering", "Block response, upstream DNS, leak protection", Icons.Rounded.Dns, onDns) }
             item { MenuRow("Allow & block rules", "Domains to always allow or always block", Icons.Rounded.Rule, onRules) }
             item { MenuRow("Network status", "Connection, DNS path and leak check", Icons.Rounded.Wifi, onNetwork) }
@@ -195,7 +198,7 @@ fun PrivacyScreen(onBack: (() -> Unit)?) {
             item {
                 TextBlock(
                     "What is stored on the device",
-                    "•  Counters: total, allowed, blocked per type, per app, per day (last 30 days). No domain names are stored.\n•  Your settings, allow/block rules, per-app switches and added blocklists.\n•  Downloaded filter lists.\n•  A list of the 50 most recently blocked domain names is held in memory only. It is never written to disk and is cleared when protection stops or statistics are reset.",
+                    "•  Counters: total, allowed, blocked per type, per app, per day (last 30 days). No domain names are stored.\n•  Your settings, allow/block rules, per-app switches and added blocklists.\n•  Downloaded filter lists.\n•  A list of the 50 most recently blocked domain names is held in memory only. It is never written to disk and is cleared when protection stops or statistics are reset.\n•  YouTube diagnostics: counters by type of host, and (only if you switch it on) a log of the last 1,500 YouTube-related lookups with the rule that decided each. Memory only, cleared when protection stops. It is saved to a file only if you press Export, and AdShield never uploads it.",
                     "Reset statistics erases all counters. Uninstalling AdShield erases everything. Backups are disabled so this data is never copied to cloud backup.",
                 )
             }

@@ -127,6 +127,72 @@ object DnsParser {
         return null
     }
 
+    private const val TYPE_CNAME = 5
+    private const val MAX_POINTER_HOPS = 16
+    private const val MAX_NAME_CHARS = 253
+    private val NO_NAMES: List<String> = emptyList()
+
+    /**
+     * Targets of CNAME records in the answer section, lower-cased. Fully bounds-checked: compression pointers
+     * may not loop (hop cap), names are length-limited and syntax-validated; anything malformed is skipped,
+     * never thrown. Returns a shared empty list (no allocation) in the common no-CNAME case.
+     */
+    fun cnameTargets(response: ByteArray): List<String> {
+        if (response.size < HEADER_SIZE + 5) return NO_NAMES
+        val answers = u16(response, 6)
+        if (answers == 0) return NO_NAMES
+        var pos = HEADER_SIZE
+        repeat(u16(response, 4)) {
+            pos = skipName(response, pos) ?: return NO_NAMES
+            pos += 4
+            if (pos > response.size) return NO_NAMES
+        }
+        var out: ArrayList<String>? = null
+        repeat(minOf(answers, 64)) {
+            pos = skipName(response, pos) ?: return out ?: NO_NAMES
+            if (pos + 10 > response.size) return out ?: NO_NAMES
+            val type = u16(response, pos)
+            val rdLen = u16(response, pos + 8)
+            val rdStart = pos + 10
+            if (rdStart + rdLen > response.size) return out ?: NO_NAMES
+            if (type == TYPE_CNAME) {
+                readName(response, rdStart)?.let { name ->
+                    if (out == null) out = ArrayList(2)
+                    out!!.add(name)
+                }
+            }
+            pos = rdStart + rdLen
+        }
+        return out ?: NO_NAMES
+    }
+
+    /** Decodes a (possibly compressed) name; null if malformed, looping, too long or syntactically invalid. */
+    private fun readName(msg: ByteArray, start: Int): String? {
+        val sb = StringBuilder()
+        var pos = start
+        var hops = 0
+        while (true) {
+            if (pos >= msg.size) return null
+            val len = msg[pos].toInt() and 0xFF
+            when {
+                len == 0 -> return if (sb.isEmpty()) null else com.adshield.engine.DomainNormalizer.normalize(sb.toString())
+                len and 0xC0 == 0xC0 -> {
+                    if (pos + 2 > msg.size || ++hops > MAX_POINTER_HOPS) return null
+                    val target = ((len and 0x3F) shl 8) or (msg[pos + 1].toInt() and 0xFF)
+                    if (target >= msg.size) return null
+                    pos = target
+                }
+                len and 0xC0 != 0 || len > 63 || pos + 1 + len > msg.size -> return null
+                else -> {
+                    if (sb.length + len + 1 > MAX_NAME_CHARS) return null
+                    if (sb.isNotEmpty()) sb.append('.')
+                    for (i in 0 until len) sb.append((msg[pos + 1 + i].toInt() and 0xFF).toChar())
+                    pos += 1 + len
+                }
+            }
+        }
+    }
+
     /** Offset one past the first question of [msg], or null if malformed. */
     fun questionEndOf(msg: ByteArray): Int? {
         if (msg.size < HEADER_SIZE || u16(msg, 4) < 1) return null

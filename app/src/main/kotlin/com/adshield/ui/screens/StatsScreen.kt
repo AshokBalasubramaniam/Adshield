@@ -101,7 +101,7 @@ fun StatsScreen(vm: StatsViewModel = hiltViewModel()) {
                                 "${formatCount(a.blocked)} / ${formatCount(a.total)}",
                             )
                         }
-                        BodyText("Blocked / total lookups. Android usually resolves names in the system resolver, so most lookups are unattributed.")
+                        BodyText("Blocked / total lookups. Whether Android reveals which app asked depends on the Android version; unattributed lookups are listed as system resolver.")
                     }
                 }
             }

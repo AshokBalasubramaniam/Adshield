@@ -7,6 +7,10 @@ import android.provider.Settings
 object PrivateDnsMode {
     enum class Mode { OFF, AUTOMATIC, STRICT, UNKNOWN }
 
+    /** Host name configured for strict Private DNS (e.g. "dns.adguard.com"), or null. */
+    fun hostname(context: Context): String? =
+        Settings.Global.getString(context.contentResolver, "private_dns_specifier")?.takeIf { it.isNotBlank() }
+
     fun read(context: Context): Mode = when (Settings.Global.getString(context.contentResolver, "private_dns_mode")) {
         "off" -> Mode.OFF
         "opportunistic" -> Mode.AUTOMATIC

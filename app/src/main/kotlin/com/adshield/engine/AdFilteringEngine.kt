@@ -4,6 +4,9 @@ import com.adshield.domain.model.AllowReason
 import com.adshield.domain.model.BlockCategory
 import com.adshield.domain.model.FilterDecision
 
+/** One downloaded or bundled filter list, kept separate so a decision can name the list that caused it. */
+class ListSet(val id: String, val name: String, val category: BlockCategory, val domains: DomainSet)
+
 /** Immutable rule snapshot; swapped atomically so the DNS hot path never takes a lock for rules. */
 class RuleSnapshot(
     val categorySets: Map<BlockCategory, DomainSet> = emptyMap(),
@@ -12,8 +15,13 @@ class RuleSnapshot(
     val userAllowByApp: Map<String, DomainSet> = emptyMap(),
     val loadedAtMillis: Long = 0L,
     val protectStreamingFirstParty: Boolean = true,
+    val protectYoutubeFirstParty: Boolean = true,
+    val listSets: List<ListSet> = emptyList(),
 ) {
-    val listDomainCount: Int = categorySets.values.sumOf { it.size }
+    val listDomainCount: Int = categorySets.values.sumOf { it.size } + listSets.sumOf { it.domains.size }
+    private val categories = BlockCategory.entries
+    internal val listSetsByCategory: Array<Array<ListSet>> = Array(categories.size) { i -> listSets.filter { it.category == categories[i] }.toTypedArray() }
+    internal val categorySetArray: Array<DomainSet?> = Array(categories.size) { i -> categorySets[categories[i]] }
 
     companion object {
         val EMPTY = RuleSnapshot()
@@ -68,17 +76,28 @@ class AdFilteringEngine(private val cacheSize: Int = 4096) {
     }
 
     private fun compute(snap: RuleSnapshot, domain: String): FilterDecision {
-        if (snap.userAllowGlobal.contains(domain)) return FilterDecision.Allow(AllowReason.USER_GLOBAL)
-        snap.userBlock.findMatch(domain)?.let { return FilterDecision.Block(BlockCategory.CUSTOM, it) }
-        if (EssentialDomains.isEssential(domain, snap.protectStreamingFirstParty)) return FilterDecision.Allow(AllowReason.ESSENTIAL)
+        // One suffix walk shared by every set below (the substrings are the main allocation on this path).
+        val suffixes = DomainSet.Suffixes.of(domain)
+        if (snap.userAllowGlobal.findMatch(suffixes) != null) return FilterDecision.Allow(AllowReason.USER_GLOBAL)
+        snap.userBlock.findMatch(suffixes)?.let { return FilterDecision.Block(BlockCategory.CUSTOM, it) }
+        if (EssentialDomains.isEssential(domain, suffixes, snap.protectStreamingFirstParty, snap.protectYoutubeFirstParty)) {
+            return FilterDecision.Allow(AllowReason.ESSENTIAL)
+        }
         for (category in LIST_ORDER) {
-            val rule = snap.categorySets[category]?.findMatch(domain)
+            val i = category.ordinal
+            val rule = snap.categorySetArray[i]?.findMatch(suffixes)
             if (rule != null) return FilterDecision.Block(category, rule)
+            val lists = snap.listSetsByCategory[i]
+            for (j in lists.indices) {
+                val ls = lists[j]
+                val r = ls.domains.findMatch(suffixes)
+                if (r != null) return FilterDecision.Block(category, r, ls.id)
+            }
         }
         return FilterDecision.Allow(AllowReason.NO_MATCH)
     }
 
     private companion object {
-        val LIST_ORDER = listOf(BlockCategory.MALWARE, BlockCategory.PHISHING, BlockCategory.TRACKER, BlockCategory.ADS)
+        val LIST_ORDER = arrayOf(BlockCategory.MALWARE, BlockCategory.PHISHING, BlockCategory.TRACKER, BlockCategory.ADS)
     }
 }

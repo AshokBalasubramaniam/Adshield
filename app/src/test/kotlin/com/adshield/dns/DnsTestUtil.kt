@@ -23,4 +23,29 @@ object DnsTestUtil {
         if (rcode == 0) { w16(0xC00C); w16(1); w16(1); w16((ttl shr 16).toInt()); w16((ttl and 0xFFFF).toInt()); w16(4); o.write(ip) }
         return o.toByteArray()
     }
+
+    private fun encodeName(name: String): ByteArray {
+        val o = ByteArrayOutputStream()
+        name.split('.').forEach { o.write(it.length); o.write(it.toByteArray(Charsets.ISO_8859_1)) }
+        o.write(0)
+        return o.toByteArray()
+    }
+
+    /** Answer: question-name CNAME -> [chain][0] -> ... -> last, then an A record for the last name (uncompressed owner names). */
+    fun cnameResponse(q: ByteArray, chain: List<String>, ip: ByteArray = byteArrayOf(1, 2, 3, 4), ttl: Long = 120): ByteArray {
+        val parsed = DnsParser.parseQuery(q)!!
+        val o = ByteArrayOutputStream()
+        fun w16(v: Int) { o.write(v shr 8); o.write(v and 0xFF) }
+        w16(parsed.id); w16(0x8180); w16(1); w16(chain.size + 1); w16(0); w16(0)
+        o.write(q, 12, parsed.questionEnd - 12)
+        var owner: ByteArray? = null // null = pointer to question name
+        for (target in chain) {
+            if (owner == null) w16(0xC00C) else o.write(owner)
+            w16(5); w16(1); w16((ttl shr 16).toInt()); w16((ttl and 0xFFFF).toInt())
+            val rd = encodeName(target)
+            w16(rd.size); o.write(rd); owner = rd
+        }
+        o.write(owner!!); w16(1); w16(1); w16((ttl shr 16).toInt()); w16((ttl and 0xFFFF).toInt()); w16(4); o.write(ip)
+        return o.toByteArray()
+    }
 }

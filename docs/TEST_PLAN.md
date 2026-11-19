@@ -85,3 +85,38 @@ Pass criteria (suggested): idle drain indistinguishable from baseline within mea
 - [ ] Google Play: complete the *Foreground service – special use* declaration if publishing there
 - [ ] `docs/DEPENDENCY_REPORT.md` regenerated on the release commit; no unresolved advisories
 - [ ] Privacy policy text in-app matches the shipped behaviour
+
+## C. YouTube ad-filtering test matrix (device required)
+
+**Status: 4 short runs were executed on 2026-11-19 (details in `YOUTUBE_ROOT_CAUSE_ANALYSIS.md` §7); every other row below is NOT RUN.** Nothing has been invented. Fill a row only from what you actually observed; leave the others as *not run*.
+
+Procedure per row: `tools/youtube_adb_capture.sh start <scenario-id>` (records device/app/network facts and mirrors `AdShieldDiag` for debug builds) → play the video with AdShield on and *Record the diagnostic log* enabled → note what happened on screen → `tools/youtube_adb_capture.sh stop` → in the app press **Export** on the YouTube protection screen → copy the counters and the rules version into the row. The CSV template is `docs/youtube_test_results_template.csv`.
+
+Always record: Android version · YouTube version · network type · ad-delivery scenario · rules version · DNS requests processed (related) · domains blocked · domains allowed · playback result · **actual** ad result (did an ad play? where?) · notes.
+
+| ID | Scenario | Result |
+|---|---|---|
+| Y01 | Video with no ads | **partial**: "Me at the zoo", Android 17, YouTube 21.45.82, Wi-Fi, strict Private DNS. 36 lookups, 0 blocked, playback normal, no ad seen. Rules version not recorded. |
+| Y02 | Video with pre-roll | not run (two popular music videos played; no pre-roll was seen at 7 s, so this scenario was **not** exercised) |
+| Y03 | Video with mid-roll | not run |
+| Y04 | Video with post-roll | not run |
+| Y05 | Long video (> 30 min) | not run |
+| Y06 | Short video / Shorts | not run |
+| Y07 | Live stream | not run |
+| Y08 | Wi-Fi | **partial**: runs R1–R4 were on Wi-Fi (status bar); link validated by `dumpsys` not recorded |
+| Y09 | Mobile data | not run |
+| Y10 | Network switch Wi-Fi ⇄ mobile mid-playback | not run |
+| Y11 | Turn protection off/on mid-session (VPN reconnect) | not run |
+| Y12 | DNS cache expiry (wait > 5 min, replay) | not run |
+| Y13 | IPv4-only network | not run |
+| Y14 | IPv6 / NAT64 network | not run |
+| Y15 | Private DNS = Automatic | not run |
+| Y16 | Private DNS = specific provider | **observed once**: `dns.adguard.com` strict, AdShield still received and attributed YouTube lookups (no bypass seen on this device). Other Android versions not tested. |
+| Y17 | After a YouTube app update (record both versions) | not run |
+| Y18 | *Aggressive* profile: what, if anything, breaks (record exact host and rule) | not run |
+
+Pass criteria: (1) **no playback-critical lookup blocked or failed** in the *Safe* profile (the screen's Playback compatibility line must not say "At risk"); (2) every blocked lookup in the log names its rule and list; (3) the actual ad result is recorded honestly even when ads still play (expected for in-stream ads, see `YOUTUBE_ROOT_CAUSE_ANALYSIS.md`). There is deliberately **no pass criterion of the form "ads are gone"**.
+
+## D. Automated coverage added for the YouTube work
+
+`CnameParserTest`, `CnameFilteringTest` (cloaking blocked and attributed, essential/allowed names not second-guessed, cached answers re-checked after a rule update), `ListAttributionAndProfileTest`, `TcpDnsSessionsTest` (21 cases: handshake, split and pipelined queries, chunking, FIN in both orders, caps, expiry, sequence wrap-around, IPv6, fuzz), `YoutubeClassifierTest`, `YoutubeDiagnosticsTest`, `KeywordSafetyTest`.

@@ -30,6 +30,7 @@ object AppCompatibility {
             "AdShield blocks separate Google ad and tracking domains (for example doubleclick.net, googlesyndication.com).",
             "Video delivery (googlevideo.com), thumbnails and sign-in are always protected and never blocked.",
             "Ads that arrive from the same servers as the video cannot be told apart at DNS level and will still play.",
+            "More → YouTube protection shows, from real lookups on this phone, which hosts YouTube asked for and which rule allowed or blocked each. Use it to check results yourself.",
             "Not verified to remove ads in any YouTube version. Results can change with every app update.",
         ),
     )

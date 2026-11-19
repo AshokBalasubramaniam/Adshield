@@ -146,8 +146,8 @@ fun DashboardScreen(
                         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Icon(Icons.Rounded.Warning, null, tint = Palette.Warning)
                             Column {
-                                Text("Private DNS is set to a specific provider", style = MaterialTheme.typography.titleMedium)
-                                BodyText("Android may send DNS around AdShield, so names can fail to resolve or skip filtering. Set Private DNS to Automatic or Off.")
+                                Text("Private DNS may bypass AdShield", style = MaterialTheme.typography.titleMedium)
+                                BodyText("Android's Private DNS is set to ${vm.privateDnsHost ?: "a specific provider"}. On some Android versions this makes DNS skip AdShield. Open YouTube protection to see whether lookups are reaching AdShield.")
                             }
                         }
                     }
