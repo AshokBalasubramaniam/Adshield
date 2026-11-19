@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AdShield</string>
+    <string name="notification_channel_name">Protection status</string>
+    <string name="notification_channel_desc">Shown while AdShield filters DNS on this device.</string>
+    <string name="notification_starting">Starting protection…</string>
+    <string name="notification_active">Protection active</string>
+    <string name="notification_blocked">Protection active · %1$d blocked</string>
+    <string name="action_turn_off">Turn off</string>
+</resources>

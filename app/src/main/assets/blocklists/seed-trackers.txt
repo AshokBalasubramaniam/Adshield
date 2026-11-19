@@ -1,0 +1,44 @@
+# AdShield bundled tracker list (original, Apache-2.0).
+# Analytics / audience-measurement / cross-site tracking endpoints. Crash reporting, push delivery
+# and deep-link services are deliberately NOT included because blocking them breaks apps.
+google-analytics.com
+ssl.google-analytics.com
+app-measurement.com
+scorecardresearch.com
+quantserve.com
+quantcount.com
+hotjar.com
+hotjar.io
+mixpanel.com
+api.mixpanel.com
+amplitude.com
+api.amplitude.com
+api.segment.io
+flurry.com
+data.flurry.com
+launches.appsflyersdk.com
+events.appsflyer.com
+t.appsflyer.com
+analytics.twitter.com
+analytics.tiktok.com
+analytics.yahoo.com
+analytics.pinterest.com
+pixel.facebook.com
+bluekai.com
+krxd.net
+demdex.net
+everesttech.net
+omtrdc.net
+2o7.net
+agkn.com
+rlcdn.com
+mathtag.com
+serving-sys.com
+tapad.com
+exelator.com
+adsymptotic.com
+crwdcntrl.net
+ml314.com
+bounceexchange.com
+chartbeat.com
+chartbeat.net

@@ -1,0 +1,67 @@
+# ---- Gradle ----
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+.kotlin/
+.cxx/
+.externalNativeBuild/
+
+# ---- Build outputs ----
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+output-metadata.json
+app/release/
+app/debug/
+
+# ---- Local machine config ----
+local.properties
+
+# ---- Signing material and secrets (never commit) ----
+*.jks
+*.keystore
+*.p12
+*.pem
+keystore.properties
+signing.properties
+*.env
+.env*
+google-services.json
+
+# ---- IDEs ----
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.fleet/
+.project
+.classpath
+.settings/
+
+# ---- OS / editor junk ----
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ---- Reports and logs generated locally ----
+captures/
+*.log
+hs_err_pid*
+lint-results*.xml
+lint-results*.html
+lint-results*.sarif
+lint-baseline.xml.tmp
+
+# ---- Claude Code local state ----
+.claude/settings.local.json
+.claude/scratch/
+
+# ---- Keep these tracked (explicit, so nobody ignores them by accident) ----
+# app/schemas/**        Room schema history, needed for migrations
+# docs/DEPENDENCY_REPORT.md, docs/icon-512.png
+# gradle/wrapper/gradle-wrapper.jar

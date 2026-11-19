@@ -1,0 +1,74 @@
+# AdShield bundled ad-network list (original, Apache-2.0).
+# Conservative on purpose: only dedicated advertising infrastructure. Nothing that serves video,
+# DRM licences, sign-in or site functionality. Larger coverage comes from the downloadable lists.
+# Google ad stack (separate from YouTube video delivery)
+doubleclick.net
+googleadservices.com
+googlesyndication.com
+googletagservices.com
+2mdn.net
+adservice.google.com
+pagead2.googlesyndication.com
+admob.com
+# Programmatic exchanges and SSPs
+adnxs.com
+adsrvr.org
+rubiconproject.com
+pubmatic.com
+openx.net
+casalemedia.com
+indexww.com
+smartadserver.com
+adform.net
+bidswitch.net
+contextweb.com
+lijit.com
+sharethrough.com
+triplelift.com
+3lift.com
+yieldmo.com
+spotxchange.com
+spotx.tv
+advertising.com
+adtechus.com
+amazon-adsystem.com
+criteo.com
+criteo.net
+taboola.com
+outbrain.com
+revcontent.com
+mgid.com
+zedo.com
+# Mobile ad networks and mediation SDK endpoints
+applovin.com
+unityads.unity3d.com
+adcolony.com
+vungle.com
+chartboost.com
+inmobi.com
+smaato.net
+mopub.com
+startappservice.com
+supersonicads.com
+ironsrc.com
+tapjoy.com
+fyber.com
+mintegral.com
+mbridge.com
+pangleglobal.com
+ads.tiktok.com
+an.facebook.com
+ads-api.twitter.com
+ads.twitter.com
+ads.linkedin.com
+ads.pinterest.com
+ads.yahoo.com
+gemini.yahoo.com
+popads.net
+propellerads.com
+adsterra.com
+exoclick.com
+trafficjunky.net
+moatads.com
+doubleverify.com
+adsafeprotected.com

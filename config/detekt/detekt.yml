@@ -1,0 +1,49 @@
+# detekt: default ruleset plus project tuning. Tests are held to the same correctness rules but not to
+# line length; @Composable functions are exempt from size/complexity limits (UI trees are long by nature).
+build:
+  maxIssues: 0
+style:
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    maxLineLength: 200
+    excludePackageStatements: true
+    excludeImportStatements: true
+    excludeCommentStatements: true
+    excludes: ['**/test/**', '**/androidTest/**', '**/ui/**', '**/AppCompatibility.kt']  # long-form UI copy
+  ReturnCount:
+    active: false
+  ThrowsCount:
+    active: false
+  WildcardImport:
+    active: true
+  LoopWithTooManyJumpStatements:
+    maxJumpCount: 3
+  UnusedPrivateMember:
+    active: true
+complexity:
+  LongMethod:
+    threshold: 80
+    ignoreAnnotated: ['Composable']
+  CyclomaticComplexMethod:
+    threshold: 20
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 10
+    ignoreAnnotated: ['Composable']
+  TooManyFunctions:
+    active: false
+  NestedBlockDepth:
+    threshold: 5
+naming:
+  MatchingDeclarationName:
+    active: false
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+    functionPattern: '[a-zA-Z][a-zA-Z0-9]*'
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+  SwallowedException:
+    active: false
